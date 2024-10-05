@@ -15,22 +15,21 @@
 
     <script>
         const instruments = {
-            'piano': new Tone.PolySynth().toDestination(),
-            'guitar': new Tone.PolySynth().toDestination(),
+            'piano': new Tone.PolySynth(Tone.Synth).toDestination(),
+            'guitar': new Tone.PolySynth(Tone.Synth).toDestination(),
             'bass': new Tone.Synth().toDestination(),
             'drums': new Tone.MembraneSynth().toDestination(),
-            'synth': new Tone.PolySynth().toDestination()
+            'synth': new Tone.PolySynth(Tone.Synth).toDestination()
         };
+
         let midiFile = new jsmidgen.File();
         let track = new jsmidgen.Track();
         midiFile.addTrack(track);
 
         function parseNote(note) {
-            // Default values for pitch, duration, instrument, and time
             const defaultValues = { pitch: 'C4', duration: '8n', instrument: 'piano', time: 0 };
             let [pitch, duration, instrument, timeOffset] = note.split(':');
 
-            // Use defaults if values aren't provided
             pitch = pitch || defaultValues.pitch;
             duration = duration || defaultValues.duration;
             instrument = instrument || defaultValues.instrument;
@@ -42,7 +41,7 @@
         function playMusic() {
             const input = document.getElementById("inputText").value.trim();
             const lines = input.split('\n');
-            let currentTime = Tone.now();
+            let currentTime = Tone.now(); // Get the current time for scheduling
 
             lines.forEach(line => {
                 const parts = line.trim().split(' ');
@@ -50,14 +49,16 @@
                     const { pitch, duration, instrument, timeOffset } = parseNote(noteText);
                     const inst = instruments[instrument] || instruments['piano'];
 
-                    // Allow chords by splitting multiple notes with "+"
+                    // Handle chords by splitting notes on "+" and schedule them
                     const chord = pitch.includes('+') ? pitch.split('+') : [pitch];
 
-                    // Schedule notes or chords at correct times
                     inst.triggerAttackRelease(chord, duration, currentTime + timeOffset);
-                    
-                    // Add each note to the MIDI track
-                    chord.forEach(p => track.addNote(0, p, 64)); // 64 = quarter note for MIDI
+
+                    // MIDI export handling
+                    chord.forEach(p => {
+                        const midiNote = p.replace(/[^\d]/g, '') || '60'; // Convert notes to MIDI compatible numbers
+                        track.addNote(0, midiNote, 64); // 64 = quarter note duration in MIDI
+                    });
                 });
             });
         }
