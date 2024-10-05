@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Text-to-Music Composer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.39/Tone.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmidgen/0.1.5/jsmidgen.min.js"></script>
+</head>
+<body>
+    <h1>Advanced Text-to-Music Composer</h1>
+    <textarea id="inputText" rows="10" cols="60" placeholder="Enter music in text form..."></textarea><br>
+    <button onclick="playMusic()">Play</button>
+    <button onclick="exportMIDI()">Export as MIDI</button>
+
+    <script>
+        const instruments = {
+            'piano': new Tone.PolySynth().toDestination(),
+            'guitar': new Tone.Synth().toDestination(),
+            'bass': new Tone.Synth().toDestination(),
+            'drums': new Tone.MembraneSynth().toDestination(),
+            'synth': new Tone.PolySynth().toDestination()
+        };
+        let midiFile = new jsmidgen.File();
+        let track = new jsmidgen.Track();
+        midiFile.addTrack(track);
+
+        function parseNote(note) {
+            // Default values for pitch, duration, instrument, and time
+            const defaultValues = { pitch: 'C4', duration: '8n', instrument: 'piano', time: 0 };
+            let [pitch, duration, instrument, time] = note.split(':');
+
+            // Use defaults if values aren't provided
+            pitch = pitch || defaultValues.pitch;
+            duration = duration || defaultValues.duration;
+            instrument = instrument || defaultValues.instrument;
+            time = time || defaultValues.time;
+
+            return { pitch, duration, instrument, time };
+        }
+
+        function playMusic() {
+            const input = document.getElementById("inputText").value;
+            const lines = input.split('\n');
+            let time = 0;
+
+            lines.forEach(line => {
+                const parts = line.split(' ');
+                parts.forEach(noteText => {
+                    const { pitch, duration, instrument, timeOffset } = parseNote(noteText);
+                    const inst = instruments[instrument] || instruments['piano'];
+
+                    // Allow chords by splitting multiple notes with "+"
+                    const chord = pitch.includes('+') ? pitch.split('+') : [pitch];
+
+                    inst.triggerAttackRelease(chord, duration, time + parseFloat(timeOffset));
+                    chord.forEach(p => track.addNote(0, p, 64)); // 64 = quarter note for MIDI
+
+                    time += Tone.Time(duration).toSeconds();
+                });
+            });
+        }
+
+        function exportMIDI() {
+            const output = midiFile.toBytes();
+            const blob = new Blob([output], { type: 'audio/midi' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'song.mid';
+            link.click();
+        }
+    </script>
+</body>
+</html>
