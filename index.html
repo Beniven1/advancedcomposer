@@ -3,23 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Advanced Text-to-Music Composer</title>
+    <title>Simple Text-to-Music Composer</title>
 </head>
 <body>
-    <h1>Advanced Text-to-Music Composer</h1>
+    <h1>Simple Text-to-Music Composer</h1>
     <textarea id="inputText" rows="10" cols="60" placeholder="Enter music in text form..."></textarea><br>
     <button onclick="playMusic()">Play</button>
-    <button onclick="exportMIDI()">Export as MIDI</button>
 
     <script>
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
         const defaultVolume = 0.1;  // Default volume level
-        const instruments = {
-            'sine': 'sine',
-            'square': 'square',
-            'triangle': 'triangle',
-            'sawtooth': 'sawtooth'
-        };
 
         // Map of note frequencies (C4, D4, E4, etc.)
         const noteFrequencies = {
@@ -28,23 +21,19 @@
         };
 
         function parseNote(note) {
-            const [pitch, duration, instrument, volume = defaultVolume, pitchBend = 0] = note.split(':');
-            return { pitch, duration: parseFloat(duration), instrument: instrument || 'sine', volume: parseFloat(volume), pitchBend: parseFloat(pitchBend) };
+            const [pitch, duration, volume = defaultVolume] = note.split(':');
+            return { pitch, duration: parseFloat(duration), volume: parseFloat(volume) };
         }
 
-        function playSound(frequency, duration, startTime, instrumentType, volume, pitchBend) {
+        function playSound(frequency, duration, startTime, volume) {
             const oscillator = audioContext.createOscillator();
-            oscillator.type = instrumentType;
+            oscillator.type = 'sine'; // Set the oscillator type to sine for a piano-like sound
 
             const gainNode = audioContext.createGain();
             gainNode.gain.setValueAtTime(volume, audioContext.currentTime + startTime); // Start at the specified volume
             gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + startTime + duration); // Gradually fade out to avoid clicks
 
-            // Add pitch bending effect if applicable
             oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime + startTime);
-            if (pitchBend !== 0) {
-                oscillator.frequency.linearRampToValueAtTime(frequency + pitchBend, audioContext.currentTime + startTime + duration);
-            }
 
             oscillator.connect(gainNode);
             gainNode.connect(audioContext.destination);
@@ -61,20 +50,14 @@
             lines.forEach(line => {
                 const notes = line.trim().split(' ');
                 notes.forEach(noteText => {
-                    const { pitch, duration, instrument, volume, pitchBend } = parseNote(noteText);
+                    const { pitch, duration, volume } = parseNote(noteText);
                     const frequency = noteFrequencies[pitch];
                     if (frequency) {
-                        playSound(frequency, duration, currentTime, instrument, volume, pitchBend);
+                        playSound(frequency, duration, currentTime, volume);
                         currentTime += duration;
                     }
                 });
             });
-        }
-
-        function exportMIDI() {
-            // Similar to the previous example, here we would add the logic to convert notes to MIDI events
-            // and export them as a downloadable file.
-            console.log("MIDI export functionality not implemented yet.");
         }
     </script>
 </body>
