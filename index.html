@@ -22,22 +22,22 @@
 
         function parseNote(note) {
             const [pitch, duration] = note.split(':');
-            return { pitch, duration: duration || '1s' };
+            return { pitch, duration: duration || '1' }; // Default to 1 second if duration not provided
         }
 
-        function playSound(frequency, duration) {
+        function playSound(frequency, duration, startTime) {
             const oscillator = audioContext.createOscillator();
             oscillator.type = 'sine'; // You can change this to 'square', 'triangle', etc.
-            oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+            oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime + startTime);
 
             const gainNode = audioContext.createGain();
-            gainNode.gain.setValueAtTime(0.1, audioContext.currentTime); // Volume control
+            gainNode.gain.setValueAtTime(0.1, audioContext.currentTime + startTime); // Volume control
 
             oscillator.connect(gainNode);
             gainNode.connect(audioContext.destination);
 
-            oscillator.start();
-            oscillator.stop(audioContext.currentTime + duration);
+            oscillator.start(audioContext.currentTime + startTime);
+            oscillator.stop(audioContext.currentTime + startTime + duration);
         }
 
         function playMusic() {
@@ -51,8 +51,8 @@
                     const { pitch, duration } = parseNote(noteText);
                     const frequency = noteFrequencies[pitch];
                     if (frequency) {
-                        playSound(frequency, parseFloat(duration));
-                        currentTime += parseFloat(duration);
+                        playSound(frequency, parseFloat(duration), currentTime);
+                        currentTime += parseFloat(duration); // Increase time for next note
                     }
                 });
             });
