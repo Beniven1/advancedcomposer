@@ -16,7 +16,7 @@
     <script>
         const instruments = {
             'piano': new Tone.PolySynth().toDestination(),
-            'guitar': new Tone.Synth().toDestination(),
+            'guitar': new Tone.PolySynth().toDestination(),
             'bass': new Tone.Synth().toDestination(),
             'drums': new Tone.MembraneSynth().toDestination(),
             'synth': new Tone.PolySynth().toDestination()
@@ -28,24 +28,24 @@
         function parseNote(note) {
             // Default values for pitch, duration, instrument, and time
             const defaultValues = { pitch: 'C4', duration: '8n', instrument: 'piano', time: 0 };
-            let [pitch, duration, instrument, time] = note.split(':');
+            let [pitch, duration, instrument, timeOffset] = note.split(':');
 
             // Use defaults if values aren't provided
             pitch = pitch || defaultValues.pitch;
             duration = duration || defaultValues.duration;
             instrument = instrument || defaultValues.instrument;
-            time = time || defaultValues.time;
+            timeOffset = timeOffset || defaultValues.time;
 
-            return { pitch, duration, instrument, time };
+            return { pitch, duration, instrument, timeOffset: parseFloat(timeOffset) };
         }
 
         function playMusic() {
-            const input = document.getElementById("inputText").value;
+            const input = document.getElementById("inputText").value.trim();
             const lines = input.split('\n');
-            let time = 0;
+            let currentTime = Tone.now();
 
             lines.forEach(line => {
-                const parts = line.split(' ');
+                const parts = line.trim().split(' ');
                 parts.forEach(noteText => {
                     const { pitch, duration, instrument, timeOffset } = parseNote(noteText);
                     const inst = instruments[instrument] || instruments['piano'];
@@ -53,10 +53,11 @@
                     // Allow chords by splitting multiple notes with "+"
                     const chord = pitch.includes('+') ? pitch.split('+') : [pitch];
 
-                    inst.triggerAttackRelease(chord, duration, time + parseFloat(timeOffset));
+                    // Schedule notes or chords at correct times
+                    inst.triggerAttackRelease(chord, duration, currentTime + timeOffset);
+                    
+                    // Add each note to the MIDI track
                     chord.forEach(p => track.addNote(0, p, 64)); // 64 = quarter note for MIDI
-
-                    time += Tone.Time(duration).toSeconds();
                 });
             });
         }
