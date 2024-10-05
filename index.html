@@ -3,73 +3,110 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Advanced Text-to-Music Composer</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.39/Tone.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmidgen/0.1.5/jsmidgen.min.js"></script>
+    <title>Basic Text-to-Music Composer</title>
 </head>
 <body>
-    <h1>Advanced Text-to-Music Composer</h1>
+    <h1>Basic Text-to-Music Composer</h1>
     <textarea id="inputText" rows="10" cols="60" placeholder="Enter music in text form..."></textarea><br>
     <button onclick="playMusic()">Play</button>
     <button onclick="exportMIDI()">Export as MIDI</button>
 
     <script>
-        const instruments = {
-            'piano': new Tone.PolySynth(Tone.Synth).toDestination(),
-            'guitar': new Tone.PolySynth(Tone.Synth).toDestination(),
-            'bass': new Tone.Synth().toDestination(),
-            'drums': new Tone.MembraneSynth().toDestination(),
-            'synth': new Tone.PolySynth(Tone.Synth).toDestination()
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+        // Simple mapping from note names to frequencies (C4 = 261.63 Hz, etc.)
+        const noteFrequencies = {
+            'C4': 261.63, 'D4': 293.66, 'E4': 329.63, 'F4': 349.23, 'G4': 392.00, 'A4': 440.00, 'B4': 493.88,
+            'C5': 523.25, 'D5': 587.33, 'E5': 659.25, 'F5': 698.46, 'G5': 783.99, 'A5': 880.00, 'B5': 987.77
         };
 
-        let midiFile = new jsmidgen.File();
-        let track = new jsmidgen.Track();
-        midiFile.addTrack(track);
-
         function parseNote(note) {
-            const defaultValues = { pitch: 'C4', duration: '8n', instrument: 'piano', time: 0 };
-            let [pitch, duration, instrument, timeOffset] = note.split(':');
+            const [pitch, duration] = note.split(':');
+            return { pitch, duration: duration || '1s' };
+        }
 
-            pitch = pitch || defaultValues.pitch;
-            duration = duration || defaultValues.duration;
-            instrument = instrument || defaultValues.instrument;
-            timeOffset = timeOffset || defaultValues.time;
+        function playSound(frequency, duration) {
+            const oscillator = audioContext.createOscillator();
+            oscillator.type = 'sine'; // You can change this to 'square', 'triangle', etc.
+            oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
 
-            return { pitch, duration, instrument, timeOffset: parseFloat(timeOffset) };
+            const gainNode = audioContext.createGain();
+            gainNode.gain.setValueAtTime(0.1, audioContext.currentTime); // Volume control
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+
+            oscillator.start();
+            oscillator.stop(audioContext.currentTime + duration);
         }
 
         function playMusic() {
             const input = document.getElementById("inputText").value.trim();
             const lines = input.split('\n');
-            let currentTime = Tone.now(); // Get the current time for scheduling
 
+            let currentTime = 0;
             lines.forEach(line => {
-                const parts = line.trim().split(' ');
-                parts.forEach(noteText => {
-                    const { pitch, duration, instrument, timeOffset } = parseNote(noteText);
-                    const inst = instruments[instrument] || instruments['piano'];
-
-                    // Handle chords by splitting notes on "+" and schedule them
-                    const chord = pitch.includes('+') ? pitch.split('+') : [pitch];
-
-                    inst.triggerAttackRelease(chord, duration, currentTime + timeOffset);
-
-                    // MIDI export handling
-                    chord.forEach(p => {
-                        const midiNote = p.replace(/[^\d]/g, '') || '60'; // Convert notes to MIDI compatible numbers
-                        track.addNote(0, midiNote, 64); // 64 = quarter note duration in MIDI
-                    });
+                const notes = line.trim().split(' ');
+                notes.forEach(noteText => {
+                    const { pitch, duration } = parseNote(noteText);
+                    const frequency = noteFrequencies[pitch];
+                    if (frequency) {
+                        playSound(frequency, parseFloat(duration));
+                        currentTime += parseFloat(duration);
+                    }
                 });
             });
         }
 
         function exportMIDI() {
-            const output = midiFile.toBytes();
-            const blob = new Blob([output], { type: 'audio/midi' });
+            const midiHeader = [
+                0x4d, 0x54, 0x68, 0x64, // "MThd"
+                0x00, 0x00, 0x00, 0x06, // header length
+                0x00, 0x01, // format 1
+                0x00, 0x02, // two tracks
+                0x00, 0x60  // 96 ticks per quarter note
+            ];
+            
+            const midiTrack = [
+                0x4d, 0x54, 0x72, 0x6b, // "MTrk"
+                // track length placeholder
+                0x00, 0x00, 0x00, 0x00
+            ];
+
+            let events = [];
+            const input = document.getElementById("inputText").value.trim();
+            const lines = input.split('\n');
+
+            lines.forEach(line => {
+                const notes = line.trim().split(' ');
+                notes.forEach(noteText => {
+                    const { pitch, duration } = parseNote(noteText);
+                    const frequency = noteFrequencies[pitch];
+                    if (frequency) {
+                        // MIDI note-on and note-off events go here
+                        events.push(0x90, frequencyToMIDINoteNumber(frequency), 0x64); // Note on
+                        events.push(parseInt(duration * 96), 0x80, frequencyToMIDINoteNumber(frequency), 0x00); // Note off
+                    }
+                });
+            });
+
+            // Track length needs to be set properly in the MIDI header
+            const trackLength = events.length + midiTrack.length - 8;
+            midiTrack[4] = (trackLength >> 24) & 0xff;
+            midiTrack[5] = (trackLength >> 16) & 0xff;
+            midiTrack[6] = (trackLength >> 8) & 0xff;
+            midiTrack[7] = trackLength & 0xff;
+
+            const midiFile = new Uint8Array([...midiHeader, ...midiTrack, ...events]);
+            const blob = new Blob([midiFile], { type: 'audio/midi' });
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
             link.download = 'song.mid';
             link.click();
+        }
+
+        function frequencyToMIDINoteNumber(frequency) {
+            return Math.round(12 * (Math.log(frequency / 440) / Math.LN2)) + 69;
         }
     </script>
 </body>
